@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Stick Hero - Canvas Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        * {
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+
+        body {
+            font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #0f172a;
+            color: #f8fafc;
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+            margin: 0;
+        }
+
+        /* Glassmorphism overlays */
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Floating Score Text Effect */
+        .perfect-text {
+            animation: floatUp 0.8s ease-out forwards;
+        }
+
+        @keyframes floatUp {
+            0% {
+                opacity: 0;
+                transform: translateY(10px) scale(0.8);
+            }
+            30% {
+                opacity: 1;
+                transform: translateY(-10px) scale(1.1);
+            }
+            100% {
+                opacity: 0;
+                transform: translateY(-30px) scale(1);
+            }
+        }
+
+        /* Button hover pulse */
+        .pulse-btn {
+            transition: all 0.2s ease;
+        }
+        .pulse-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px -5px rgba(239, 68, 68, 0.4);
+        }
+        .pulse-btn:active {
+            transform: translateY(1px);
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen bg-slate-950 text-slate-100">
+
+    <!-- Main Game Container -->
+    <div id="game-container" class="relative w-full max-w-md h-full md:h-[680px] md:rounded-3xl overflow-hidden shadow-2xl bg-gradient-to-b from-slate-900 via-indigo-950 to-slate-950 flex flex-col justify-between border border-slate-800">
+        
+        <!-- Header Bar: Scores & Audio Toggle -->
+        <div class="absolute top-0 left-0 right-0 p-5 flex justify-between items-center z-20 pointer-events-none">
+            <div class="flex flex-col">
+                <span class="text-xs uppercase tracking-wider text-slate-400 font-semibold">Score</span>
+                <span id="score" class="text-4xl font-black tracking-tight text-white drop-shadow-md">0</span>
+            </div>
+
+            <div class="flex items-center gap-3 pointer-events-auto">
+                <div class="flex flex-col items-end">
+                    <span class="text-xs uppercase tracking-wider text-slate-400 font-semibold">Best</span>
+                    <span id="high-score" class="text-xl font-extrabold text-amber-400">0</span>
+                </div>
+                <button id="sound-btn" class="w-10 h-10 rounded-full glass-panel flex items-center justify-center text-slate-300 hover:text-white transition">
+                    <svg id="sound-icon-on" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path>
+                    </svg>
+                    <svg id="sound-icon-off" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15zM17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <!-- Floating Feedback Text (Double Score / Perfect!) -->
+        <div id="perfect-indicator" class="absolute top-28 left-0 right-0 text-center pointer-events-none z-20 hidden">
+            <span class="perfect-text inline-block px-4 py-1.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-sm font-extrabold tracking-widest uppercase shadow-lg backdrop-blur-md">
+                🎯 PERFECT! +2
+            </span>
+        </div>
+
+        <!-- Canvas Game View -->
+        <canvas id="game-canvas" class="w-full h-full cursor-pointer touch-none block"></canvas>
+
+        <!-- Dynamic On-Screen Helper Message -->
+        <div id="instruction" class="absolute bottom-12 left-0 right-0 text-center pointer-events-none transition-opacity duration-300 z-10">
+            <p class="text-slate-300 font-medium text-sm md:text-base animate-pulse bg-slate-900/60 inline-block px-5 py-2 rounded-full border border-slate-700/50 backdrop-blur-sm shadow-lg">
+                Hold <span class="text-rose-400 font-bold">Mouse</span> or <span class="text-rose-400 font-bold">Spacebar</span> to stretch stick
+            </p>
+        </div>
+
+        <!-- Game Over Modal -->
+        <div id="game-over-modal" class="absolute inset-0 bg-slate-950/80 backdrop-blur-md z-30 flex flex-col items-center justify-center p-6 hidden transition-all duration-300">
+            <div class="w-full max-w-xs glass-panel rounded-2xl p-6 text-center border border-slate-700/60 shadow-2xl flex flex-col items-center gap-5">
+                <div class="w-16 h-16 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center mb-1">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                    </svg>
+                </div>
+                <h2 class="text-2xl font-black tracking-tight text-white">GAME OVER</h2>
+                
+                <div class="w-full grid grid-cols-2 gap-3 bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+                    <div class="flex flex-col items-center border-r border-slate-800">
+                        <span class="text-xs text-slate-400 font-semibold uppercase">Score</span>
+                        <span id="final-score" class="text-2xl font-black text-white">0</span>
+                    </div>
+                    <div class="flex flex-col items-center">
+                        <span class="text-xs text-slate-400 font-semibold uppercase">Best</span>
+                        <span id="modal-high-score" class="text-2xl font-black text-amber-400">0</span>
+                    </div>
+                </div>
+
+                <button id="restart-btn" class="pulse-btn w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-rose-500 to-pink-600 text-white font-extrabold text-base tracking-wide shadow-lg shadow-rose-500/25 flex items-center justify-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                    PLAY AGAIN
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // Web Audio Synthesizer for Zero-Dependency Sound Effects
+        class SoundFX {
+            constructor() {
+                this.ctx = null;
+                this.muted = false;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    if (AudioCtx) this.ctx = new AudioCtx();
+                }
+                if (this.ctx && this.ctx.state === 'suspended') {
+                    this.ctx.resume();
+                }
+            }
+
+            playStretch(pitch) {
+                if (this.muted || !this.ctx) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(150 + pitch * 1.5, this.ctx.currentTime);
+                    gain.gain.setValueAtTime(0.05, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.08);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 0.08);
+                } catch (e) {}
+            }
+
+            playDrop() {
+                if (this.muted || !this.ctx) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(300, this.ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(80, this.ctx.currentTime + 0.15);
+                    gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.15);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 0.15);
+                } catch (e) {}
+            }
+
+            playStep() {
+                if (this.muted || !this.ctx) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(120, this.ctx.currentTime);
+                    gain.gain.setValueAtTime(0.03, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.05);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 0.05);
+                } catch (e) {}
+            }
+
+            playPerfect() {
+                if (this.muted || !this.ctx) return;
+                try {
+                    const now = this.ctx.currentTime;
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(523.25, now); // C5
+                    osc.frequency.setValueAtTime(659.25, now + 0.08); // E5
+                    osc.frequency.setValueAtTime(783.99, now + 0.16); // G5
+                    osc.frequency.setValueAtTime(1046.50, now + 0.24); // C6
+                    gain.gain.setValueAtTime(0.12, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(now + 0.4);
+                } catch (e) {}
+            }
+
+            playFall() {
+                if (this.muted || !this.ctx) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(250, this.ctx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(40, this.ctx.currentTime + 0.5);
+                    gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.5);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 0.5);
+                } catch (e) {}
+            }
+
+            playScore() {
+                if (this.muted || !this.ctx) return;
+                try {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(440, this.ctx.currentTime);
+                    osc.frequency.setValueAtTime(880, this.ctx.currentTime + 0.08);
+                    gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+                    gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.2);
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start();
+                    osc.stop(this.ctx.currentTime + 0.2);
+                } catch (e) {}
+            }
+        }
+
+        const sound = new SoundFX();
+
+        // Canvas & Setup
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score');
+        const highScoreEl = document.getElementById('high-score');
+        const finalScoreEl = document.getElementById('final-score');
+        const modalHighScoreEl = document.getElementById('modal-high-score');
+        const gameOverModal = document.getElementById('game-over-modal');
+        const restartBtn = document.getElementById('restart-btn');
+        const soundBtn = document.getElementById('sound-btn');
+        const soundIconOn = document.getElementById('sound-icon-on');
+        const soundIconOff = document.getElementById('sound-icon-off');
+        const instructionEl = document.getElementById('instruction');
+        const perfectIndicator = document.getElementById('perfect-indicator');
+
+        // High Score
+        let highScore = parseInt(localStorage.getItem('stick_hero_highscore') || '0', 10);
+        highScoreEl.textContent = highScore;
+
+        // Constants & Configuration
+        const STRETCH_SPEED = 320; // Length per second
+        const TURN_SPEED = 400; // Degrees per second
+        const WALK_SPEED = 220; // Pixels per second
+        const FALL_SPEED = 500; // Pixels per second
+        const HERO_WIDTH = 20;
+        const HERO_HEIGHT = 28;
+        const PERFECT_SPOT_WIDTH = 8;
+
+        // Game State Variables
+        let phase = 'waiting'; // 'waiting', 'stretching', 'turning', 'walking', 'transitioning', 'falling'
+        let lastTimestamp = 0;
+        let score = 0;
+        let sceneOffset = 0;
+        let targetSceneOffset = 0;
+
+        // Visual Entities
+        let hero = { x: 0, y: 0, walkFrame: 0, rotation: 0 };
+        let stick = { length: 0, rotation: 0 }; // Rotation in degrees (0 = vertical)
+        let platforms = [];
+        let particles = [];
+        let backgroundTrees = [];
+
+        // Responsive Canvas Sizing
+        function resizeCanvas() {
+            const container = document.getElementById('game-container');
+            const rect = container.getBoundingClientRect();
+            const dpr = window.devicePixelRatio || 1;
+            
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            
+            ctx.resetTransform();
+            ctx.scale(dpr, dpr);
+
+            // Re-render if initialized
+            if (platforms.length > 0) {
+                draw();
+            }
+        }
+
+        // Logical Canvas Dimensions (scaled)
+        function getCanvasSize() {
+            const container = document.getElementById('game-container');
+            const rect = container.getBoundingClientRect();
+            return { width: rect.width, height: rect.height };
+        }
+
+        function initGame() {
+            const { width, height } = getCanvasSize();
+            score = 0;
+            scoreEl.textContent = '0';
+            sceneOffset = 0;
+            targetSceneOffset = 0;
+            phase = 'waiting';
+            particles = [];
+            
+            instructionEl.classList.remove('opacity-0');
+            gameOverModal.classList.add('hidden');
+
+            // Platforms Setup
+            platforms = [
+                { x: 40, w: 70 },
+                generatePlatform(150)
+            ];
+
+            // Hero Placement (on first platform edge)
+            const firstPlatform = platforms[0];
+            const platformY = height - 150;
+            hero.x = firstPlatform.x + firstPlatform.w - HERO_WIDTH - 6;
+            hero.y = platformY - HERO_HEIGHT;
+            hero.walkFrame = 0;
+            hero.rotation = 0;
+
+            // Stick Setup
+            stick = { length: 0, rotation: 0 };
+
+            // Generate parallax background elements
+            backgroundTrees = [];
+            for (let i = 0; i < 15; i++) {
+                backgroundTrees.push({
+                    x: Math.random() * width * 3,
+                    height: 40 + Math.random() * 60,
+                    width: 20 + Math.random() * 25,
+                    color: Math.random() > 0.5 ? '#1e293b' : '#0f172a'
+                });
+            }
+
+            draw();
+        }
+
+        function generatePlatform(minX) {
+            const { width } = getCanvasSize();
+            const minW = 35;
+            const maxW = 80;
+            const minGap = 50;
+            const maxGap = Math.min(220, width - minX - minW);
+
+            const w = Math.floor(Math.random() * (maxW - minW + 1)) + minW;
+            const x = minX + Math.floor(Math.random() * (maxGap - minGap + 1)) + minGap;
+
+            return { x, w };
+        }
+
+        // User Controls
+        function handleInputStart(e) {
+            if (e.target.closest('button')) return; // Ignore clicks on buttons
+            sound.init();
+
+            if (phase === 'waiting') {
+                phase = 'stretching';
+                stick.length = 0;
+                stick.rotation = 0;
+                instructionEl.classList.add('opacity-0');
+            }
+        }
+
+        function handleInputEnd() {
+            if (phase === 'stretching') {
+                phase = 'turning';
+                sound.playDrop();
+            }
+        }
+
+        // Global Event Listeners
+        window.addEventListener('pointerdown', handleInputStart);
+        window.addEventListener('pointerup', handleInputEnd);
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' && !e.repeat) {
+                e.preventDefault();
+                handleInputStart(e);
+            }
+        });
+        window.addEventListener('keyup', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                handleInputEnd();
+            }
+        });
+
+        // Toggle Sound Mute
+        soundBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            sound.muted = !sound.muted;
+            soundIconOn.classList.toggle('hidden', sound.muted);
+            soundIconOff.classList.toggle('hidden', !sound.muted);
+        });
+
+        // Restart Button Listener
+        restartBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            initGame();
+        });
+
+        window.addEventListener('resize', resizeCanvas);
+
+        function spawnPerfectParticles(x, y) {
+            for (let i = 0; i < 24; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 2 + Math.random() * 5;
+                particles.push({
+                    x,
+                    y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed - 2,
+                    size: 3 + Math.random() * 4,
+                    color: Math.random() > 0.5 ? '#f59e0b' : '#fef08a',
+                    alpha: 1,
+                    decay: 0.02 + Math.random() * 0.02
+                });
+            }
+        }
+
+        function showPerfectPopup() {
+            perfectIndicator.classList.remove('hidden');
+            setTimeout(() => {
+                perfectIndicator.classList.add('hidden');
+            }, 800);
+        }
+
+        // Core Game Loop & Physics Update
+        function update(timestamp) {
+            if (!lastTimestamp) lastTimestamp = timestamp;
+            const dt = Math.min((timestamp - lastTimestamp) / 1000, 0.1); // Cap delta time
+            lastTimestamp = timestamp;
+
+            const { height } = getCanvasSize();
+            const platformY = height - 150;
+            const currentPlatform = platforms[0];
+            const nextPlatform = platforms[1];
+
+            // 1. Stretching Phase
+            if (phase === 'stretching') {
+                stick.length += STRETCH_SPEED * dt;
+                sound.playStretch(stick.length);
+            }
+
+            // 2. Turning Phase (Stick falling 0 -> 90 deg)
+            else if (phase === 'turning') {
+                stick.rotation += TURN_SPEED * dt;
+                if (stick.rotation >= 90) {
+                    stick.rotation = 90;
+
+                    // Evaluate landing
+                    const stickFarEdge = currentPlatform.x + currentPlatform.w + stick.length;
+                    const nextPlatformLeft = nextPlatform.x;
+                    const nextPlatformRight = nextPlatform.x + nextPlatform.w;
+
+                    // Perfect center spot calculations
+                    const centerSpotX = nextPlatform.x + nextPlatform.w / 2;
+                    const isPerfect = Math.abs(stickFarEdge - centerSpotX) <= PERFECT_SPOT_WIDTH / 2;
+
+                    // Check if stick hits platform
+                    if (stickFarEdge >= nextPlatformLeft && stickFarEdge <= nextPlatformRight) {
+                        phase = 'walking';
+                        nextPlatform.isTarget = true;
+                        nextPlatform.wasHitPerfect = isPerfect;
+
+                        if (isPerfect) {
+                            score += 2;
+                            sound.playPerfect();
+                            spawnPerfectParticles(centerSpotX - sceneOffset, platformY);
+                            showPerfectPopup();
+                        } else {
+                            score += 1;
+                            sound.playScore();
+                        }
+                        scoreEl.textContent = score;
+
+                        if (score > highScore) {
+                            highScore = score;
+                            highScoreEl.textContent = highScore;
+                            localStorage.setItem('stick_hero_highscore', highScore.toString());
+                        }
+                    } else {
+                        phase = 'walking';
+                        nextPlatform.isTarget = false; // Missed
+                    }
+                }
+            }
+
+            // 3. Walking Phase
+            else if (phase === 'walking') {
+                hero.x += WALK_SPEED * dt;
+                hero.walkFrame += dt * 12;
+
+                if (Math.floor(hero.walkFrame * 2) % 3 === 0) {
+                    sound.playStep();
+                }
+
+                const stickFarEdge = currentPlatform.x + currentPlatform.w + stick.length;
+
+                // Case A: Successful Landing
+                if (nextPlatform.isTarget) {
+                    const targetHeroX = nextPlatform.x + nextPlatform.w - HERO_WIDTH - 6;
+                    if (hero.x >= targetHeroX) {
+                        hero.x = targetHeroX;
+                        phase = 'transitioning';
+                        targetSceneOffset = sceneOffset + (nextPlatform.x - currentPlatform.x);
+                    }
+                }
+                // Case B: Missed Landing
+                else {
+                    const stopHeroX = stickFarEdge + HERO_WIDTH / 2;
+                    if (hero.x >= stopHeroX) {
+                        hero.x = stopHeroX;
+                        phase = 'falling';
+                        sound.playFall();
+                    }
+                }
+            }
+
+            // 4. Transitioning (Scrolling camera to next platform)
+            else if (phase === 'transitioning') {
+                const diff = targetSceneOffset - sceneOffset;
+                sceneOffset += diff * 8 * dt;
+
+                if (Math.abs(diff) < 0.5) {
+                    sceneOffset = targetSceneOffset;
+                    // Shift platforms
+                    platforms.shift();
+                    // Generate new target platform
+                    const newMinX = platforms[0].x + platforms[0].w;
+                    platforms.push(generatePlatform(newMinX));
+                    
+                    // Reset stick
+                    stick.length = 0;
+                    stick.rotation = 0;
+
+                    phase = 'waiting';
+                }
+            }
+
+            // 5. Falling Phase (Failed attempt)
+            else if (phase === 'falling') {
+                hero.y += FALL_SPEED * dt;
+                hero.rotation += 180 * dt;
+                if (stick.rotation < 180) {
+                    stick.rotation += TURN_SPEED * dt;
+                }
+
+                if (hero.y > height + 100) {
+                    // Trigger Game Over
+                    finalScoreEl.textContent = score;
+                    modalHighScoreEl.textContent = highScore;
+                    gameOverModal.classList.remove('hidden');
+                }
+            }
+
+            // Update particles
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.15; // Gravity
+                p.alpha -= p.decay;
+                if (p.alpha <= 0) particles.splice(i, 1);
+            }
+
+            draw();
+            requestAnimationFrame(update);
+        }
+
+        // Canvas Rendering Routines
+        function draw() {
+            const { width, height } = getCanvasSize();
+            const platformY = height - 150;
+
+            ctx.clearRect(0, 0, width, height);
+
+            // 1. Render Sky Gradient
+            const skyGradient = ctx.createLinearGradient(0, 0, 0, height);
+            skyGradient.addColorStop(0, '#0f172a');
+            skyGradient.addColorStop(0.6, '#1e1b4b');
+            skyGradient.addColorStop(1, '#311042');
+            ctx.fillStyle = skyGradient;
+            ctx.fillRect(0, 0, width, height);
+
+            // 2. Render Parallax Trees/Mountains in Background
+            backgroundTrees.forEach(tree => {
+                const renderX = (tree.x - sceneOffset * 0.3) % (width * 2) - 50;
+                ctx.fillStyle = tree.color;
+                ctx.beginPath();
+                ctx.moveTo(renderX, platformY);
+                ctx.lineTo(renderX + tree.width / 2, platformY - tree.height);
+                ctx.lineTo(renderX + tree.width, platformY);
+                ctx.closePath();
+                ctx.fill();
+            });
+
+            ctx.save();
+            ctx.translate(-sceneOffset, 0);
+
+            // 3. Render Platforms
+            platforms.forEach((p, idx) => {
+                // Main Platform Body
+                const platGradient = ctx.createLinearGradient(p.x, platformY, p.x, height);
+                platGradient.addColorStop(0, '#1e293b');
+                platGradient.addColorStop(1, '#0f172a');
+                ctx.fillStyle = platGradient;
+                ctx.fillRect(p.x, platformY, p.w, height - platformY);
+
+                // Platform Top Edge Highlight
+                ctx.fillStyle = '#38bdf8';
+                ctx.fillRect(p.x, platformY, p.w, 4);
+
+                // Red Perfect Center Zone (for non-starting platforms)
+                if (idx > 0) {
+                    const spotX = p.x + p.w / 2 - PERFECT_SPOT_WIDTH / 2;
+                    ctx.fillStyle = '#ef4444';
+                    ctx.fillRect(spotX, platformY, PERFECT_SPOT_WIDTH, 4);
+                }
+            });
+
+            // 4. Render Stick
+            if (platforms.length > 0) {
+                const currentPlatform = platforms[0];
+                const stickX = currentPlatform.x + currentPlatform.w;
+
+                ctx.save();
+                ctx.translate(stickX, platformY);
+                ctx.rotate((stick.rotation * Math.PI) / 180);
+
+                // Stick shadow/glow
+                ctx.strokeStyle = 'rgba(244, 63, 94, 0.4)';
+                ctx.lineWidth = 6;
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(0, -stick.length);
+                ctx.stroke();
+
+                // Main Stick
+                ctx.strokeStyle = '#f43f5e';
+                ctx.lineWidth = 4;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(0, -stick.length);
+                ctx.stroke();
+
+                ctx.restore();
+            }
+
+            // 5. Render Hero Character
+            ctx.save();
+            ctx.translate(hero.x + HERO_WIDTH / 2, hero.y + HERO_HEIGHT / 2);
+            if (hero.rotation !== 0) {
+                ctx.rotate((hero.rotation * Math.PI) / 180);
+            }
+
+            // Character Body (Stylized Cute Hero)
+            const bodyColor = '#f8fafc';
+            const scarfColor = '#f43f5e';
+
+            // Head / Torso
+            ctx.fillStyle = bodyColor;
+            ctx.beginPath();
+            ctx.roundRect(-HERO_WIDTH / 2, -HERO_HEIGHT / 2, HERO_WIDTH, HERO_HEIGHT - 6, 6);
+            ctx.fill();
+
+            // Eyes / Visor
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(HERO_WIDTH / 2 - 8, -HERO_HEIGHT / 2 + 6, 5, 5);
+
+            // Flowing Scarf
+            ctx.fillStyle = scarfColor;
+            ctx.fillRect(-HERO_WIDTH / 2 - 3, -HERO_HEIGHT / 2 + 14, HERO_WIDTH + 3, 5);
+
+            // Animated Legs
+            ctx.fillStyle = bodyColor;
+            let legOffset = 0;
+            if (phase === 'walking') {
+                legOffset = Math.sin(hero.walkFrame) * 4;
+            }
+
+            // Left Leg
+            ctx.fillRect(-HERO_WIDTH / 2 + 2, HERO_HEIGHT / 2 - 6, 5, 6 + legOffset);
+            // Right Leg
+            ctx.fillRect(HERO_WIDTH / 2 - 7, HERO_HEIGHT / 2 - 6, 5, 6 - legOffset);
+
+            ctx.restore();
+
+            // 6. Render Particles
+            particles.forEach(p => {
+                ctx.save();
+                ctx.globalAlpha = p.alpha;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+
+            ctx.restore();
+        }
+
+        // Initialization on Load
+        window.onload = function () {
+            resizeCanvas();
+            initGame();
+            requestAnimationFrame(update);
+        };
+    </script>
+</body>
+</html>
